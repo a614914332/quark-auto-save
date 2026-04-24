@@ -1,0 +1,43 @@
+name: Quark Auto Signin
+
+on:
+  workflow_dispatch:
+  schedule:
+    # GitHub Actions uses UTC. This runs daily at 08:30 Asia/Shanghai.
+    - cron: '30 0 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quark-auto-signin
+  cancel-in-progress: false
+
+jobs:
+  signin:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run quark signin
+        env:
+          QUARK_COOKIE: ${{ secrets.QUARK_COOKIE }}
+          QUARK_SIGN_NOTIFY: ${{ vars.QUARK_SIGN_NOTIFY || 'true' }}
+        run: |
+          if [ -z "$QUARK_COOKIE" ]; then
+            echo 'QUARK_COOKIE secret is empty. Please add it in repository Secrets.' >&2
+            exit 1
+          fi
+          rm -f quark_config.json
+          python quark_auto_save.py
