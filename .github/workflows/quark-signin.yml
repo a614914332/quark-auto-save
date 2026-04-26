@@ -2,6 +2,11 @@ name: Quark Auto Signin
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/quark-signin.yml
   schedule:
     # GitHub Actions uses UTC. This runs daily at 08:30 Asia/Shanghai.
     - cron: '30 0 * * *'
