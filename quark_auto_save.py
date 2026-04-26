@@ -1112,7 +1112,7 @@ def do_sign(account):
     if not account.mparam:
         print("⏭️ 移动端参数未设置，跳过签到")
         print()
-        return
+        return False
     # 每日领空间
     growth_info = account.get_growth_info()
     if growth_info:
@@ -1127,6 +1127,8 @@ def do_sign(account):
             sign_message = f"📅 签到记录: 今日已签到+{int(growth_info['cap_sign']['sign_daily_reward']/1024/1024)}MB，连签进度({growth_info['cap_sign']['sign_progress']}/{growth_info['cap_sign']['sign_target']})✅"
             message = f"{sign_message}\n{growth_message}"
             print(message)
+            print()
+            return True
         else:
             sign, sign_return = account.get_growth_sign()
             if sign:
@@ -1143,11 +1145,16 @@ def do_sign(account):
                 else:
                     message = message.replace("今日", f"[{account.nickname}]今日")
                     add_notify(message)
+                print()
+                return True
             else:
                 print(f"📅 签到异常: {sign_return}")
+                print()
+                return False
     else:
         print("⏭️ 签到进度读取异常，可能登录失效，跳过签到")
-    print()
+        print()
+        return False
 
 
 def do_save(account, tasklist=[]):
@@ -1295,16 +1302,21 @@ def main():
     if not cookies:
         print("❌ cookie 未配置")
         return
+    strict_signin = os.environ.get("QUARK_STRICT_SIGNIN", "").lower() == "true"
     accounts = [Quark(cookie, index) for index, cookie in enumerate(cookies)]
     # 签到
     print(f"===============签到任务===============")
+    signin_results = []
     if tasklist_from_env:
         verify_account(accounts[0])
     else:
         for account in accounts:
             verify_account(account)
-            do_sign(account)
+            signin_results.append(do_sign(account))
     print()
+    if strict_signin and not all(signin_results):
+        print("❌ 严格签到模式校验失败，请检查 QUARK_COOKIE 是否包含有效的 kps/sign/vcode 参数")
+        sys.exit(1)
     # 转存
     if accounts[0].is_active and cookie_form_file:
         print(f"===============转存任务===============")

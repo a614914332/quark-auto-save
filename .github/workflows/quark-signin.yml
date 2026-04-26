@@ -34,10 +34,17 @@ jobs:
         env:
           QUARK_COOKIE: ${{ secrets.QUARK_COOKIE }}
           QUARK_SIGN_NOTIFY: ${{ vars.QUARK_SIGN_NOTIFY || 'true' }}
+          QUARK_STRICT_SIGNIN: 'true'
         run: |
           if [ -z "$QUARK_COOKIE" ]; then
             echo 'QUARK_COOKIE secret is empty. Please add it in repository Secrets.' >&2
             exit 1
           fi
+          for key in __uid kps sign vcode; do
+            if ! printf '%s' "$QUARK_COOKIE" | grep -q "${key}="; then
+              echo "QUARK_COOKIE is missing required field: ${key}" >&2
+              exit 1
+            fi
+          done
           rm -f quark_config.json
           python quark_auto_save.py
