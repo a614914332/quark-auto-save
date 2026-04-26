@@ -42,12 +42,12 @@ jobs:
           QUARK_STRICT_SIGNIN: 'true'
         run: |
           if [ -z "$QUARK_COOKIE" ]; then
-            echo 'QUARK_COOKIE secret is empty. Please add it in repository Secrets.' >&2
+            echo '::error title=Invalid QUARK_COOKIE::QUARK_COOKIE secret is empty. Please add it in repository Secrets.' >&2
             exit 1
           fi
           for key in kps sign vcode; do
             if ! printf '%s' "$QUARK_COOKIE" | grep -q "${key}="; then
-              echo "QUARK_COOKIE is missing required field: ${key}" >&2
+              echo "::error title=Invalid QUARK_COOKIE::QUARK_COOKIE is missing required field: ${key}" >&2
               exit 1
             fi
           done
