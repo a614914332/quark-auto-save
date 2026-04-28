@@ -5,7 +5,7 @@
 # ConfigFile: quark_config.json
 """
 new Env('夸克自动追更');
-0 8,18,20 * * * quark_auto_save.py
+0 7 * * * quark_auto_save.py
 """
 import os
 import re
@@ -359,6 +359,61 @@ class Quark:
     BASE_URL = "https://drive-pc.quark.cn"
     BASE_URL_APP = "https://drive-m.quark.cn"
     USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) quark-cloud-drive/3.14.2 Chrome/112.0.5615.165 Electron/24.1.3.8 Safari/537.36 Channel/pckk_other_ch"
+    MOBILE_USER_AGENT = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5_1 like Mac OS X; zh-cn) AppleWebKit/601.1.46 (KHTML, like Gecko) Mobile/21F90 Quark/10.8.1.2995 Mobile"
+    GROWTH_PARAM_DEFAULTS = {
+        "sign_cyclic": "true",
+        "fetch_record": "true",
+        "uc_param_str": "dnfrpfbivessbtbmnilauputogpintnwmtsvcppcprsnnnchmicckp",
+        "fr": "iphone",
+        "pf": "200",
+        "bi": "997",
+        "ve": "10.8.1.2995",
+        "ss": "393x852",
+        "bt": "UC",
+        "bm": "WWW",
+        "la": "zh-cn",
+        "og": "GR",
+        "pi": "1179x2556",
+        "nt": "1",
+        "nw": "0",
+        "sv": "appa",
+        "pr": "ucpro",
+        "ch": "kk@appstore",
+        "mi": "iPhone15,2",
+    }
+    GROWTH_PARAM_KEYS = (
+        "__t",
+        "sign_cyclic",
+        "kps",
+        "kp",
+        "sign",
+        "vcode",
+        "fetch_record",
+        "uc_param_str",
+        "dn",
+        "fr",
+        "pf",
+        "bi",
+        "ve",
+        "ss",
+        "bt",
+        "bm",
+        "ni",
+        "la",
+        "up",
+        "ut",
+        "og",
+        "pi",
+        "nt",
+        "nw",
+        "mt",
+        "sv",
+        "pc",
+        "pr",
+        "nn",
+        "ch",
+        "mi",
+    )
 
     def __init__(self, cookie="", index=0):
         self.cookie = cookie.strip()
@@ -367,19 +422,82 @@ class Quark:
         self.nickname = ""
         self.mparam = self._match_mparam_form_cookie(cookie)
         self.savepath_fid = {"/": "0"}
+        self.last_growth_error = ""
+
+    @staticmethod
+    def _decode_mobile_param(value):
+        decoded = value.strip()
+        for _ in range(3):
+            next_value = urllib.parse.unquote(decoded)
+            if next_value == decoded:
+                break
+            decoded = next_value
+        return decoded
+
+    @classmethod
+    def _extract_mobile_param(cls, cookie, key):
+        pattern = rf"(?<![\w]){key}=([^;&\s]+)"
+        match = re.search(pattern, cookie)
+        if not match:
+            return None
+        return cls._decode_mobile_param(match.group(1))
+
+    @classmethod
+    def _extract_mobile_params_from_url(cls, cookie):
+        mobile_params = {}
+        for url in re.findall(r"https?://[^\s;]+", cookie):
+            parsed = urllib.parse.urlparse(url)
+            for key, value in urllib.parse.parse_qsl(
+                parsed.query, keep_blank_values=True
+            ):
+                if key in cls.GROWTH_PARAM_KEYS and value:
+                    mobile_params[key] = cls._decode_mobile_param(value)
+        return mobile_params
 
     def _match_mparam_form_cookie(self, cookie):
-        mparam = {}
-        kps_match = re.search(r"(?<!\w)kps=([a-zA-Z0-9%+/=]+)[;&]?", cookie)
-        sign_match = re.search(r"(?<!\w)sign=([a-zA-Z0-9%+/=]+)[;&]?", cookie)
-        vcode_match = re.search(r"(?<!\w)vcode=([a-zA-Z0-9%+/=]+)[;&]?", cookie)
-        if kps_match and sign_match and vcode_match:
-            mparam = {
-                "kps": kps_match.group(1).replace("%25", "%"),
-                "sign": sign_match.group(1).replace("%25", "%"),
-                "vcode": vcode_match.group(1).replace("%25", "%"),
-            }
-        return mparam
+        mparam = self._extract_mobile_params_from_url(cookie)
+        for key in self.GROWTH_PARAM_KEYS:
+            value = self._extract_mobile_param(cookie, key)
+            if value:
+                mparam[key] = value
+        if mparam.get("kps") and not mparam.get("kp"):
+            mparam["kp"] = mparam["kps"]
+        required_keys = ("kps", "sign", "vcode")
+        if all(mparam.get(key) for key in required_keys):
+            return mparam
+        return {}
+
+    def _build_growth_query(self):
+        timestamp = str(int(time.time() * 1000))
+        querystring = dict(self.GROWTH_PARAM_DEFAULTS)
+        querystring.update(self.mparam)
+        querystring["__t"] = timestamp
+        querystring["sign_cyclic"] = "true"
+        querystring["fetch_record"] = "true"
+        querystring["kp"] = querystring.get("kp") or querystring.get("kps")
+        return querystring
+
+    def _build_growth_headers(self):
+        return {
+            "accept": "*/*",
+            "content-type": "application/json",
+            "origin": "https://b.quark.cn",
+            "referer": "https://b.quark.cn/",
+            "sec-fetch-site": "same-site",
+            "sec-fetch-mode": "cors",
+            "sec-fetch-dest": "empty",
+            "accept-encoding": "gzip, deflate, br",
+            "accept-language": "zh-Hans-CN;q=1",
+            "user-agent": self.MOBILE_USER_AGENT,
+        }
+
+    @staticmethod
+    def _build_growth_cookie_query():
+        return {
+            "pr": "ucpro",
+            "fr": "pc",
+            "uc_param_str": "",
+        }
 
     def _send_request(self, method, url, **kwargs):
         headers = {
@@ -453,46 +571,43 @@ class Quark:
 
     def get_growth_info(self):
         url = f"{self.BASE_URL_APP}/1/clouddrive/capacity/growth/info"
-        querystring = {
-            "pr": "ucpro",
-            "fr": "android",
-            "kps": self.mparam.get("kps"),
-            "sign": self.mparam.get("sign"),
-            "vcode": self.mparam.get("vcode"),
-        }
-        headers = {
-            "content-type": "application/json",
-        }
-        response = self._send_request(
-            "GET", url, headers=headers, params=querystring
-        ).json()
+        if self.mparam:
+            kwargs = {
+                "headers": self._build_growth_headers(),
+                "params": self._build_growth_query(),
+            }
+        else:
+            kwargs = {"params": self._build_growth_cookie_query()}
+        response = self._send_request("GET", url, **kwargs).json()
         if response.get("data"):
+            self.last_growth_error = ""
             return response["data"]
         else:
+            self.last_growth_error = (
+                response.get("message")
+                or response.get("error")
+                or json.dumps(response, ensure_ascii=False)
+            )
             return False
 
     def get_growth_sign(self):
         url = f"{self.BASE_URL_APP}/1/clouddrive/capacity/growth/sign"
-        querystring = {
-            "pr": "ucpro",
-            "fr": "android",
-            "kps": self.mparam.get("kps"),
-            "sign": self.mparam.get("sign"),
-            "vcode": self.mparam.get("vcode"),
-        }
         payload = {
             "sign_cyclic": True,
         }
-        headers = {
-            "content-type": "application/json",
-        }
-        response = self._send_request(
-            "POST", url, json=payload, headers=headers, params=querystring
-        ).json()
+        if self.mparam:
+            kwargs = {
+                "headers": self._build_growth_headers(),
+                "params": self._build_growth_query(),
+            }
+        else:
+            kwargs = {"params": self._build_growth_cookie_query()}
+        response = self._send_request("POST", url, json=payload, **kwargs).json()
         if response.get("data"):
+            self.last_growth_error = ""
             return True, response["data"]["sign_daily_reward"]
         else:
-            return False, response["message"]
+            return False, response.get("message", "unknown error")
 
     # 可验证资源是否失效
     def get_stoken(self, pwd_id, passcode=""):
@@ -1092,6 +1207,9 @@ def verify_account(account):
     else:
         account_info = account.init()
         if not account_info:
+            if account.mparam:
+                print("💡 PC端账号校验失败，但检测到有效移动端签到参数，继续执行签到")
+                return False
             add_notify(f"👤 第{account.index}个账号登录失败，cookie无效❌")
             return False
         else:
@@ -1110,9 +1228,11 @@ def format_bytes(size_bytes: int) -> str:
 
 def do_sign(account):
     if not account.mparam:
-        print("⏭️ 移动端参数未设置，跳过签到")
-        print()
-        return False
+        if "__uid" not in account.cookie:
+            print("⏭️ 移动端参数未设置，跳过签到")
+            print()
+            return False
+        print("💡 移动端参数未设置，尝试使用 PC Cookie 签到")
     # 每日领空间
     growth_info = account.get_growth_info()
     if growth_info:
@@ -1152,7 +1272,10 @@ def do_sign(account):
                 print()
                 return False
     else:
-        print("⏭️ 签到进度读取异常，可能登录失效，跳过签到")
+        print(
+            "⏭️ 签到进度读取异常，可能登录失效，跳过签到"
+            + (f": {account.last_growth_error}" if account.last_growth_error else "")
+        )
         print()
         return False
 
@@ -1315,7 +1438,7 @@ def main():
             signin_results.append(do_sign(account))
     print()
     if strict_signin and not all(signin_results):
-        print("❌ 严格签到模式校验失败，请检查 QUARK_COOKIE 是否包含有效的 kps/sign/vcode 参数")
+        print("❌ 严格签到模式校验失败，请检查 QUARK_COOKIE 是否有效；如 PC Cookie 无法签到，请补充有效的移动端 kps/sign/vcode 参数")
         sys.exit(1)
     # 转存
     if accounts[0].is_active and cookie_form_file:

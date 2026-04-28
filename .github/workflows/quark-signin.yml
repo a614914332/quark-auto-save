@@ -7,9 +7,12 @@ on:
       - main
     paths:
       - .github/workflows/quark-signin.yml
+      - quark_auto_save.py
+      - requirements.txt
+      - tests/**
   schedule:
-    # GitHub Actions uses UTC. This runs daily at 08:30 Asia/Shanghai.
-    - cron: '30 0 * * *'
+    # GitHub Actions uses UTC. This runs daily at 07:00 Asia/Shanghai.
+    - cron: '0 23 * * *'
 
 permissions:
   contents: read
@@ -35,6 +38,9 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Run signin self-tests
+        run: python -m unittest tests/test_signin_params.py
+
       - name: Run quark signin
         env:
           QUARK_COOKIE: ${{ secrets.QUARK_COOKIE }}
@@ -45,11 +51,5 @@ jobs:
             echo '::error title=Invalid QUARK_COOKIE::QUARK_COOKIE secret is empty. Please add it in repository Secrets.' >&2
             exit 1
           fi
-          for key in kps sign vcode; do
-            if ! printf '%s' "$QUARK_COOKIE" | grep -q "${key}="; then
-              echo "::error title=Invalid QUARK_COOKIE::QUARK_COOKIE is missing required field: ${key}" >&2
-              exit 1
-            fi
-          done
           rm -f quark_config.json
           python quark_auto_save.py

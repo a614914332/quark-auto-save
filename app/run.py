@@ -580,7 +580,7 @@ def init():
 
     # 默认定时规则
     if not config_data.get("crontab"):
-        config_data["crontab"] = "0 8,18,20 * * *"
+        config_data["crontab"] = "0 7 * * *"
 
     # 初始化插件配置
     _, plugins_config_default, task_plugins_config_default = Config.load_plugins()
