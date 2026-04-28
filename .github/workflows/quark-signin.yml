@@ -46,6 +46,13 @@ jobs:
           QUARK_COOKIE: ${{ secrets.QUARK_COOKIE }}
           QUARK_SIGN_NOTIFY: ${{ vars.QUARK_SIGN_NOTIFY || 'true' }}
           QUARK_STRICT_SIGNIN: 'true'
+          SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
+          SMTP_SSL: ${{ secrets.SMTP_SSL }}
+          SMTP_EMAIL: ${{ secrets.SMTP_EMAIL }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          SMTP_NAME: ${{ secrets.SMTP_NAME }}
+          SMTP_EMAIL_TO: ${{ secrets.SMTP_EMAIL_TO }}
+          SMTP_NAME_TO: ${{ secrets.SMTP_NAME_TO }}
         run: |
           if [ -z "$QUARK_COOKIE" ]; then
             echo '::error title=Invalid QUARK_COOKIE::QUARK_COOKIE secret is empty. Please add it in repository Secrets.' >&2
