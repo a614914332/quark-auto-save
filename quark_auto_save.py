@@ -1233,6 +1233,20 @@ def do_sign(account):
             print()
             return False
         print("💡 移动端参数未设置，尝试使用 PC Cookie 签到")
+    def emit_sign_result(sign_message, growth_message):
+        message = f"{sign_message}\n{growth_message}"
+        if (
+            str(CONFIG_DATA.get("push_config", {}).get("QUARK_SIGN_NOTIFY")).lower()
+            == "false"
+            or os.environ.get("QUARK_SIGN_NOTIFY") == "false"
+        ):
+            print(message)
+        else:
+            notify_message = message.replace("今日", f"[{account.nickname}]今日")
+            add_notify(notify_message)
+            print(message)
+        print()
+
     # 每日领空间
     growth_info = account.get_growth_info()
     if growth_info:
@@ -1245,27 +1259,13 @@ def do_sign(account):
         growth_message = f"💾 {VIP_MAP.get(growth_info['member_type'], growth_info['member_type'])} 总空间：{format_bytes(growth_info['total_capacity'])}，签到累计获得：{format_bytes(growth_info['cap_composition'].get('sign_reward', 0))}"
         if growth_info["cap_sign"]["sign_daily"]:
             sign_message = f"📅 签到记录: 今日已签到+{int(growth_info['cap_sign']['sign_daily_reward']/1024/1024)}MB，连签进度({growth_info['cap_sign']['sign_progress']}/{growth_info['cap_sign']['sign_target']})✅"
-            message = f"{sign_message}\n{growth_message}"
-            print(message)
-            print()
+            emit_sign_result(sign_message, growth_message)
             return True
         else:
             sign, sign_return = account.get_growth_sign()
             if sign:
                 sign_message = f"📅 执行签到: 今日签到+{int(sign_return/1024/1024)}MB，连签进度({growth_info['cap_sign']['sign_progress']+1}/{growth_info['cap_sign']['sign_target']})✅"
-                message = f"{sign_message}\n{growth_message}"
-                if (
-                    str(
-                        CONFIG_DATA.get("push_config", {}).get("QUARK_SIGN_NOTIFY")
-                    ).lower()
-                    == "false"
-                    or os.environ.get("QUARK_SIGN_NOTIFY") == "false"
-                ):
-                    print(message)
-                else:
-                    message = message.replace("今日", f"[{account.nickname}]今日")
-                    add_notify(message)
-                print()
+                emit_sign_result(sign_message, growth_message)
                 return True
             else:
                 print(f"📅 签到异常: {sign_return}")
